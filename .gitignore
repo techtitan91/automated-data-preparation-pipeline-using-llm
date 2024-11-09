@@ -148,3 +148,5 @@ out/
 Thumbs.db
 ehthumbs.db
 Desktop.ini
+
+processed_data/*
