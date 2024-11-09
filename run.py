@@ -1,4 +1,3 @@
-from dotenv import load_dotenv
 import logging
 from src.pipeline import AnnotationPipeline
 
@@ -9,7 +8,6 @@ def setup_logging():
     )
 
 def main():
-    load_dotenv()
     setup_logging()
     logger = logging.getLogger(__name__)
     
