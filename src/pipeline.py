@@ -11,6 +11,7 @@ import json
 
 class AnnotationPipeline:
     def __init__(self, output_dir: str = "annotated_data"):
+        # Initialize components for data processing pipeline
         self.annotator = DataAnnotator()
         self.connector = S3Connector()
         self.cleaner = AdvancedCleaner(CleaningConfig(
@@ -58,19 +59,16 @@ class AnnotationPipeline:
                 # Read and process the dataset
                 df, text_columns = self._read_dataset(temp_path)
                 
-                # Process each text column
-                processed_df = df.copy()
-                quality_metrics_dict = {}
-                
+                # Main processing loop for each text column
                 for column in text_columns:
                     self.logger.info(f"Processing column: {column}")
                     
-                    # Clean the texts
+                    # Initialize containers for processed data
                     texts = df[column].tolist()
                     cleaned_texts = []
                     annotations = []
                     
-                    # Process each text while maintaining the original length
+                    # Process each text entry individually to maintain data integrity
                     for text in texts:
                         if text is None or not isinstance(text, str):
                             cleaned_texts.append("")
@@ -142,20 +140,10 @@ class AnnotationPipeline:
             raise
 
     def _read_dataset(self, file_path: Path) -> Tuple[pd.DataFrame, List[str]]:
-        """
-        Read dataset and identify text columns.
-        
-        Args:
-            file_path (Path): Path to the dataset file
-            
-        Returns:
-            Tuple[pd.DataFrame, List[str]]: 
-                - The loaded dataframe
-                - List of column names containing text data
-        """
+        """Read dataset and identify text columns."""
         ext = file_path.suffix.lower()
         try:
-            # Read the file based on extension
+            # Support multiple file formats
             if ext == '.csv':
                 df = pd.read_csv(file_path)
             elif ext == '.json':
@@ -163,17 +151,15 @@ class AnnotationPipeline:
             else:
                 raise ValueError(f"Unsupported file format: {ext}")
             
-            # Detect text columns
+            # Identify columns containing meaningful text data
             text_columns = []
             for column in df.columns:
-                # Check if column is object type (string)
                 if df[column].dtype == 'object':
-                    # Additional checks to confirm it's actually text
                     sample = df[column].dropna().iloc[0] if not df[column].empty else None
                     if sample and isinstance(sample, str):
-                        # Check if it's a reasonably sized text (not just a category)
+                        # Filter out short strings that are likely categorical
                         avg_length = df[column].str.len().mean()
-                        if avg_length > 10:  # Adjustable threshold
+                        if avg_length > 10:
                             text_columns.append(column)
             
             if not text_columns:
