@@ -6,16 +6,9 @@ import pandas as pd
 from src.annotator import DataAnnotator
 from src.s3_connector import S3Connector
 from src.cleaner import AdvancedCleaner, CleaningConfig
-from src.quality_controller import QualityController, QualityMetrics, CompletenessMetrics
-from src.benchmarker import DatasetBenchmarker
+from src.quality_controller import QualityController, QualityMetrics
 import json
 
-class CustomEncoder(json.JSONEncoder):
-    def default(self, obj):
-        if isinstance(obj, CompletenessMetrics):
-            return obj.to_dict()  # or however you want to represent it
-        return super().default(obj)
-    
 class AnnotationPipeline:
     def __init__(self, output_dir: str = "annotated_data"):
         self.annotator = DataAnnotator()
@@ -34,8 +27,6 @@ class AnnotationPipeline:
         self.logger = logging.getLogger(__name__)
         self._setup_logging()
 
-        self.benchmarker = DatasetBenchmarker(self.output_dir)
-
     def _setup_logging(self):
         """Configure logging for the pipeline"""
         log_file = self.output_dir / "pipeline.log"
@@ -50,7 +41,6 @@ class AnnotationPipeline:
         self.logger.addHandler(file_handler)
         self.logger.setLevel(logging.INFO)
 
-
     def process_datasets(self):
         """Process each dataset through the complete pipeline"""
         self.logger.info("Starting dataset processing")
@@ -58,7 +48,6 @@ class AnnotationPipeline:
             datasets = self.connector.list_datasets()
             for dataset in datasets:
                 self.logger.info(f"Processing dataset: {dataset}")
-                self.benchmarker.start_benchmark()
                 
                 # Create temporary file path
                 temp_path = self.output_dir / f"temp_{Path(dataset).name}"
@@ -128,38 +117,9 @@ class AnnotationPipeline:
                         'completeness': metrics.completeness,
                         'consistency': metrics.consistency,
                         'validity': metrics.validity,
-                        'uniqueness': metrics.uniqueness,
-                        'nlp_quality': metrics.nlp_quality
+                        'uniqueness': metrics.uniqueness
                     }
                 
-                # End benchmark and save results
-                benchmark_metrics = self.benchmarker.end_benchmark(
-                    dataset_name=Path(dataset).stem,
-                    original_df=df,
-                    processed_df=processed_df,
-                    quality_metrics=quality_metrics_dict
-                )
-                
-                # Convert BenchmarkMetrics object to dictionary
-                metrics_dict = self.benchmarker._metrics_to_dict(benchmark_metrics)
-                
-                self.logger.info(f"Benchmark results for {dataset}:")
-                self.logger.info(f"Processing time: {metrics_dict['processing_time_seconds']:.2f} seconds")
-                self.logger.info(f"Memory usage: {metrics_dict['memory_usage_mb']:.2f} MB")
-                self.logger.info(f"Input records: {metrics_dict['input_records']}")
-                self.logger.info(f"Output records: {metrics_dict['output_records']}")
-                self.logger.info(f"Cleaning ratio: {metrics_dict['cleaning_ratio']:.2%}")
-                self.logger.info(f"Annotation coverage: {metrics_dict['annotation_coverage']:.2%}")
-
-                # Log quality scores if available
-                if 'quality_scores' in metrics_dict:
-                    quality = metrics_dict['quality_scores']
-                    self.logger.info("Quality Metrics:")
-                    self.logger.info(f"  Accuracy: {quality['accuracy']:.2%}")
-                    self.logger.info(f"  Precision: {quality['precision']:.2%}")
-                    self.logger.info(f"  Recall: {quality['recall']:.2%}")
-                    self.logger.info(f"  F1 Score: {quality['f1_score']:.2%}")
-
                 # Save processed data
                 output_base = self.output_dir / f"processed_{Path(dataset).stem}"
                 
@@ -168,13 +128,12 @@ class AnnotationPipeline:
                 
                 # Save quality metrics
                 with open(f"{output_base}_metrics.json", 'w') as f:
-                    json.dump(quality_metrics_dict, f, indent=2, cls=CustomEncoder)
+                    json.dump(quality_metrics_dict, f, indent=2)
                 
                 # Cleanup
                 temp_path.unlink()
                 
                 self.logger.info(f"Completed processing dataset: {dataset}")
-                break
                 
         except Exception as e:
             self.logger.error(f"Error in pipeline: {e}", exc_info=True)
@@ -225,37 +184,3 @@ class AnnotationPipeline:
         except Exception as e:
             self.logger.error(f"Error reading dataset {file_path}: {e}")
             raise
-
-    def process_single_column(self, df: pd.DataFrame, column: str) -> pd.DataFrame:
-        """Process a single column and return processed dataframe"""
-        processed_df = df.copy()
-        texts = df[column].tolist()
-        cleaned_texts = []
-        annotations = []
-        
-        # Process texts
-        for text in texts:
-            if text is None or not isinstance(text, str):
-                cleaned_texts.append("")
-                annotations.append([])
-                continue
-                
-            cleaned = self.cleaner.clean_batch([text])
-            if cleaned:
-                cleaned_text = cleaned[0]
-                cleaned_texts.append(cleaned_text)
-                try:
-                    annotated_data = self.annotator.process_batch(cleaned_text)
-                    annotations.append(annotated_data)
-                except Exception as e:
-                    self.logger.warning(f"Annotation failed for text: {e}")
-                    annotations.append([])
-            else:
-                cleaned_texts.append("")
-                annotations.append([])
-        
-        # Add processed columns
-        processed_df[f"{column}_cleaned"] = cleaned_texts
-        processed_df[f"{column}_annotations"] = annotations
-        
-        return processed_df
