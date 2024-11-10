@@ -6,9 +6,15 @@ import pandas as pd
 from src.annotator import DataAnnotator
 from src.s3_connector import S3Connector
 from src.cleaner import AdvancedCleaner, CleaningConfig
-from src.quality_controller import QualityController, QualityMetrics
+from src.quality_controller import QualityController, QualityMetrics, CompletenessMetrics
 import json
 
+class CustomEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, CompletenessMetrics):
+            return obj.to_dict()  # or however you want to represent it
+        return super().default(obj)
+    
 class AnnotationPipeline:
     def __init__(self, output_dir: str = "annotated_data"):
         self.annotator = DataAnnotator()
@@ -40,6 +46,7 @@ class AnnotationPipeline:
         
         self.logger.addHandler(file_handler)
         self.logger.setLevel(logging.INFO)
+
 
     def process_datasets(self):
         """Process each dataset through the complete pipeline"""
@@ -129,7 +136,7 @@ class AnnotationPipeline:
                 
                 # Save quality metrics
                 with open(f"{output_base}_metrics.json", 'w') as f:
-                    json.dump(quality_metrics_dict, f, indent=2)
+                    json.dump(quality_metrics_dict, f, indent=2, cls=CustomEncoder)
                 
                 # Cleanup
                 temp_path.unlink()
