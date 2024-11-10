@@ -142,10 +142,25 @@ class AnnotationPipeline:
                     quality_metrics=quality_metrics_dict
                 )
                 
+                # Convert BenchmarkMetrics object to dictionary
+                metrics_dict = self.benchmarker._metrics_to_dict(benchmark_metrics)
+                
                 self.logger.info(f"Benchmark results for {dataset}:")
-                self.logger.info(f"Processing time: {benchmark_metrics.processing_time:.2f} seconds")
-                self.logger.info(f"Cleaning ratio: {benchmark_metrics.cleaning_ratio:.2%}")
-                self.logger.info(f"Annotation coverage: {benchmark_metrics.annotation_coverage:.2%}")
+                self.logger.info(f"Processing time: {metrics_dict['processing_time_seconds']:.2f} seconds")
+                self.logger.info(f"Memory usage: {metrics_dict['memory_usage_mb']:.2f} MB")
+                self.logger.info(f"Input records: {metrics_dict['input_records']}")
+                self.logger.info(f"Output records: {metrics_dict['output_records']}")
+                self.logger.info(f"Cleaning ratio: {metrics_dict['cleaning_ratio']:.2%}")
+                self.logger.info(f"Annotation coverage: {metrics_dict['annotation_coverage']:.2%}")
+
+                # Log quality scores if available
+                if 'quality_scores' in metrics_dict:
+                    quality = metrics_dict['quality_scores']
+                    self.logger.info("Quality Metrics:")
+                    self.logger.info(f"  Accuracy: {quality['accuracy']:.2%}")
+                    self.logger.info(f"  Precision: {quality['precision']:.2%}")
+                    self.logger.info(f"  Recall: {quality['recall']:.2%}")
+                    self.logger.info(f"  F1 Score: {quality['f1_score']:.2%}")
 
                 # Save processed data
                 output_base = self.output_dir / f"processed_{Path(dataset).stem}"

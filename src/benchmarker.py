@@ -56,11 +56,17 @@ class DatasetBenchmarker:
             quality_scores=self.calculate_nlp_quality_metrics(processed_df)
         )
 
-        # Store the additional quality metrics if provided
+        # Convert quality metrics to serializable format
         if quality_metrics:
+            serializable_metrics = {}
+            for column, metrics in quality_metrics.items():
+                serializable_metrics[column] = {
+                    k: float(v) if isinstance(v, (int, float)) else str(v)
+                    for k, v in metrics.items()
+                }
             self.metrics[dataset_name] = {
                 **self._metrics_to_dict(metrics),
-                'column_quality_metrics': quality_metrics
+                'column_quality_metrics': serializable_metrics
             }
         else:
             self.metrics[dataset_name] = self._metrics_to_dict(metrics)
@@ -82,7 +88,30 @@ class DatasetBenchmarker:
             
         return np.mean(coverage_scores)
 
-    def _metrics_to_dict(self, metrics: BenchmarkMetrics) -> Dict[str, Any]:
+    def _metrics_to_dict(self, metrics: Dict[str, Any]) -> Dict[str, Any]:
+        """Convert metrics dictionary to a JSON-serializable format"""
+        # If metrics is already a dict, ensure all values are serializable
+        if isinstance(metrics, dict):
+            return {
+                'processing_time_seconds': metrics.get('processing_time', 0),
+                'memory_usage_mb': metrics.get('memory_usage', 0),
+                'input_records': metrics.get('input_size', 0),
+                'output_records': metrics.get('output_size', 0),
+                'cleaning_ratio': metrics.get('cleaning_ratio', 0),
+                'annotation_coverage': metrics.get('annotation_coverage', 0),
+                'quality_scores': {
+                    'accuracy': metrics.get('accuracy', 0),
+                    'precision': metrics.get('precision', 0),
+                    'recall': metrics.get('recall', 0),
+                    'f1_score': metrics.get('f1_score', 0),
+                    'bleu_score': metrics.get('bleu_score'),
+                    'rouge_scores': metrics.get('rouge_scores'),
+                    'perplexity': metrics.get('perplexity'),
+                    'inter_annotator_agreement': metrics.get('inter_annotator_agreement')
+                }
+            }
+        
+        # If metrics is a BenchmarkMetrics object (the original case)
         quality_scores_dict = {
             'accuracy': metrics.quality_scores.accuracy,
             'precision': metrics.quality_scores.precision,
@@ -105,9 +134,18 @@ class DatasetBenchmarker:
         }
 
     def _save_benchmark_results(self):
+        """Save benchmark results to JSON file with custom serialization"""
         benchmark_file = self.output_dir / 'benchmark_results.json'
+        # Ensure all values are JSON serializable
+        serializable_metrics = {}
+        for dataset, metrics in self.metrics.items():
+            serializable_metrics[dataset] = {
+                k: float(v) if isinstance(v, (int, float)) else v
+                for k, v in metrics.items()
+            }
+        
         with open(benchmark_file, 'w') as f:
-            json.dump(self.metrics, f, indent=2) 
+            json.dump(serializable_metrics, f, indent=2)
 
     def calculate_nlp_quality_metrics(self, processed_df: pd.DataFrame) -> NLPQualityMetrics:
         """Calculate comprehensive NLP quality metrics"""
