@@ -1,10 +1,10 @@
-# CleanBagel: Automated Data Preparation Pipeline
+# BageLLM: Automated Data Preparation Pipeline
 
-This repository contains the implementation of CleanBagel, an automated data preparation pipeline specifically optimized for Llama 3.2 fine-tuning.
+This repository contains the implementation of BageLLM, an automated data preparation pipeline specifically optimized for Llama 3.2 fine-tuning.
 
 ## Project Structure
 ```
-cleanbagel/
+BageLLM/
 ├── src/
 │   ├── __init__.py
 │   ├── annotator.py
