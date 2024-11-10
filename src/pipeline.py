@@ -7,6 +7,7 @@ from src.annotator import DataAnnotator
 from src.s3_connector import S3Connector
 from src.cleaner import AdvancedCleaner, CleaningConfig
 from src.quality_controller import QualityController, QualityMetrics, CompletenessMetrics
+from src.benchmarker import DatasetBenchmarker
 import json
 
 class CustomEncoder(json.JSONEncoder):
@@ -34,6 +35,8 @@ class AnnotationPipeline:
         self.logger = logging.getLogger(__name__)
         self._setup_logging()
 
+        self.benchmarker = DatasetBenchmarker(self.output_dir)
+
     def _setup_logging(self):
         """Configure logging for the pipeline"""
         log_file = self.output_dir / "pipeline.log"
@@ -56,6 +59,7 @@ class AnnotationPipeline:
             datasets = self.connector.list_datasets()
             for dataset in datasets:
                 self.logger.info(f"Processing dataset: {dataset}")
+                self.benchmarker.start_benchmark()
                 
                 # Create temporary file path
                 temp_path = self.output_dir / f"temp_{Path(dataset).name}"
@@ -66,6 +70,10 @@ class AnnotationPipeline:
                 # Read and process the dataset
                 df, text_columns = self._read_dataset(temp_path)
                 
+                # Initialize quality metrics dictionary
+                quality_metrics_dict = {}
+                processed_df = df.copy()
+
                 # Main processing loop for each text column
                 for column in text_columns:
                     self.logger.info(f"Processing column: {column}")
@@ -126,6 +134,19 @@ class AnnotationPipeline:
                         'nlp_quality': metrics.nlp_quality
                     }
                 
+                # End benchmark and save results
+                benchmark_metrics = self.benchmarker.end_benchmark(
+                    dataset_name=Path(dataset).stem,
+                    original_df=df,
+                    processed_df=processed_df,
+                    quality_metrics=quality_metrics_dict
+                )
+                
+                self.logger.info(f"Benchmark results for {dataset}:")
+                self.logger.info(f"Processing time: {benchmark_metrics.processing_time:.2f} seconds")
+                self.logger.info(f"Cleaning ratio: {benchmark_metrics.cleaning_ratio:.2%}")
+                self.logger.info(f"Annotation coverage: {benchmark_metrics.annotation_coverage:.2%}")
+
                 # Save processed data
                 output_base = self.output_dir / f"processed_{Path(dataset).stem}"
                 
