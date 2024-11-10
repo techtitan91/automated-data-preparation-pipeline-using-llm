@@ -1,9 +1,29 @@
-boto3>=1.26.0
+# Core dependencies
 pandas>=1.5.0
+numpy>=1.21.0
+scipy>=1.7.0
 spacy>=3.7.0
-en-core-web-sm @ https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.7.0/en_core_web_sm-3.7.0-py3-none-any.whl 
-gradio>=4.0.0
-plotly>=5.0.0
+boto3>=1.26.0
+python-dotenv>=0.19.0
 
-psutil
-torch
+# NLP and ML
+transformers>=4.30.0
+torch>=2.0.0
+en-core-web-sm @ https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.7.0/en_core_web_sm-3.7.0-py3-none-any.whl
+
+# Utilities
+rich>=10.12.0
+tqdm>=4.65.0
+typing-extensions>=4.5.0
+langdetect>=1.0.9
+
+# Testing
+pytest>=7.0.0
+pytest-cov>=4.0.0
+
+# Development
+black>=22.3.0
+flake8>=4.0.0
+mypy>=1.0.0
+
+langdetect==1.0.9

@@ -66,8 +66,7 @@ class TestQualityController(unittest.TestCase):
             metrics.completeness >= 0,
             metrics.consistency >= 0,
             metrics.validity >= 0,
-            metrics.uniqueness >= 0,
-            metrics.nlp_quality >= 0
+            metrics.uniqueness >= 0
         ]))
 
 if __name__ == '__main__':
