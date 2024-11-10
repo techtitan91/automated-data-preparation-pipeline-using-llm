@@ -18,7 +18,6 @@ class CustomEncoder(json.JSONEncoder):
     
 class AnnotationPipeline:
     def __init__(self, output_dir: str = "annotated_data"):
-        # Initialize components for data processing pipeline
         self.annotator = DataAnnotator()
         self.connector = S3Connector()
         self.cleaner = AdvancedCleaner(CleaningConfig(
@@ -70,20 +69,19 @@ class AnnotationPipeline:
                 # Read and process the dataset
                 df, text_columns = self._read_dataset(temp_path)
                 
-                # Initialize quality metrics dictionary
-                quality_metrics_dict = {}
+                # Process each text column
                 processed_df = df.copy()
-
-                # Main processing loop for each text column
+                quality_metrics_dict = {}
+                
                 for column in text_columns:
                     self.logger.info(f"Processing column: {column}")
                     
-                    # Initialize containers for processed data
+                    # Clean the texts
                     texts = df[column].tolist()
                     cleaned_texts = []
                     annotations = []
                     
-                    # Process each text entry individually to maintain data integrity
+                    # Process each text while maintaining the original length
                     for text in texts:
                         if text is None or not isinstance(text, str):
                             cleaned_texts.append("")
@@ -183,10 +181,20 @@ class AnnotationPipeline:
             raise
 
     def _read_dataset(self, file_path: Path) -> Tuple[pd.DataFrame, List[str]]:
-        """Read dataset and identify text columns."""
+        """
+        Read dataset and identify text columns.
+        
+        Args:
+            file_path (Path): Path to the dataset file
+            
+        Returns:
+            Tuple[pd.DataFrame, List[str]]: 
+                - The loaded dataframe
+                - List of column names containing text data
+        """
         ext = file_path.suffix.lower()
         try:
-            # Support multiple file formats
+            # Read the file based on extension
             if ext == '.csv':
                 df = pd.read_csv(file_path)
             elif ext == '.json':
@@ -194,15 +202,17 @@ class AnnotationPipeline:
             else:
                 raise ValueError(f"Unsupported file format: {ext}")
             
-            # Identify columns containing meaningful text data
+            # Detect text columns
             text_columns = []
             for column in df.columns:
+                # Check if column is object type (string)
                 if df[column].dtype == 'object':
+                    # Additional checks to confirm it's actually text
                     sample = df[column].dropna().iloc[0] if not df[column].empty else None
                     if sample and isinstance(sample, str):
-                        # Filter out short strings that are likely categorical
+                        # Check if it's a reasonably sized text (not just a category)
                         avg_length = df[column].str.len().mean()
-                        if avg_length > 10:
+                        if avg_length > 10:  # Adjustable threshold
                             text_columns.append(column)
             
             if not text_columns:
@@ -215,3 +225,37 @@ class AnnotationPipeline:
         except Exception as e:
             self.logger.error(f"Error reading dataset {file_path}: {e}")
             raise
+
+    def process_single_column(self, df: pd.DataFrame, column: str) -> pd.DataFrame:
+        """Process a single column and return processed dataframe"""
+        processed_df = df.copy()
+        texts = df[column].tolist()
+        cleaned_texts = []
+        annotations = []
+        
+        # Process texts
+        for text in texts:
+            if text is None or not isinstance(text, str):
+                cleaned_texts.append("")
+                annotations.append([])
+                continue
+                
+            cleaned = self.cleaner.clean_batch([text])
+            if cleaned:
+                cleaned_text = cleaned[0]
+                cleaned_texts.append(cleaned_text)
+                try:
+                    annotated_data = self.annotator.process_batch(cleaned_text)
+                    annotations.append(annotated_data)
+                except Exception as e:
+                    self.logger.warning(f"Annotation failed for text: {e}")
+                    annotations.append([])
+            else:
+                cleaned_texts.append("")
+                annotations.append([])
+        
+        # Add processed columns
+        processed_df[f"{column}_cleaned"] = cleaned_texts
+        processed_df[f"{column}_annotations"] = annotations
+        
+        return processed_df
